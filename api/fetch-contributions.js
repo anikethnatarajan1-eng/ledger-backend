@@ -28,8 +28,8 @@ export default async function handler(req, res) {
     });
 
     // Fetch repos for the authenticated installation
-    const reposRes = await octokit.rest.repos.listForAuthenticatedUser();
-    const repos = reposRes.data;
+    const reposRes = await octokit.rest.apps.listReposAccessibleToInstallation();
+const repos = reposRes.data.repositories; // only repos the app can access
 
     let outcomes = [];
 
