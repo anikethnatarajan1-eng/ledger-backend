@@ -1,11 +1,11 @@
-// ledger-backend/api/fetch-contributions.js
+// /api/fetch-contributions.js
 import { Octokit } from "@octokit/rest";
 import { createAppAuth } from "@octokit/auth-app";
 import pkg from "pg";
 
 const { Pool } = pkg;
 
-// Set up Postgres connection
+// Connect to Postgres / Supabase
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
 });
@@ -13,33 +13,35 @@ const pool = new Pool({
 export default async function handler(req, res) {
   const { username } = req.query;
 
-  if (!username) return res.status(400).json({ error: "username required" });
+  if (!username) {
+    return res.status(400).json({ error: "username is required" });
+  }
 
   try {
-    // Authenticate as GitHub App
+    // Create Octokit instance with GitHub App authentication
     const octokit = new Octokit({
-  authStrategy: createAppAuth,
-  auth: {
-    appId: process.env.GITHUB_APP_ID,
-    privateKey: process.env.GITHUB_PRIVATE_KEY.replace(/\\n/g, "\n"),
-    installationId: parseInt(process.env.GITHUB_INSTALLATION_ID),
-  },
-});
+      authStrategy: createAppAuth,
+      auth: {
+        appId: process.env.GITHUB_APP_ID,
+        privateKey: process.env.GITHUB_PRIVATE_KEY.replace(/\\n/g, "\n"),
+        installationId: parseInt(process.env.GITHUB_INSTALLATION_ID),
+      },
+    });
 
-    // Fetch public repos of the user (you can narrow to your repo later)
-    const repos = await octokit.rest.repos.listForUser({ username });
+    // Fetch repos accessible by the installation
+    const repos = await octokit.rest.repos.listForAuthenticatedUser();
 
     let outcomes = [];
 
     for (let repo of repos.data) {
       // Fetch PRs
       const prs = await octokit.rest.pulls.list({
-        owner: username,
+        owner: repo.owner.login,
         repo: repo.name,
         state: "all",
       });
 
-      prs.data.forEach((pr) => {
+      prs.data.forEach(pr => {
         outcomes.push({
           repo: repo.name,
           type: "PR",
@@ -48,15 +50,14 @@ export default async function handler(req, res) {
         });
       });
 
-      // Fetch issues
+      // Fetch issues (excluding PRs)
       const issues = await octokit.rest.issues.listForRepo({
-        owner: username,
+        owner: repo.owner.login,
         repo: repo.name,
         state: "all",
       });
 
-      issues.data.forEach((issue) => {
-        // Ignore pull requests in issues list
+      issues.data.forEach(issue => {
         if (!issue.pull_request) {
           outcomes.push({
             repo: repo.name,
@@ -71,7 +72,7 @@ export default async function handler(req, res) {
     // Store outcomes in Postgres
     for (let outcome of outcomes) {
       await pool.query(
-        `INSERT INTO outcomes(user, repo, type, status, date)
+        `INSERT INTO outcomes(user_name, repo, type, status, date)
          VALUES($1, $2, $3, $4, $5)
          ON CONFLICT DO NOTHING`,
         [username, outcome.repo, outcome.type, outcome.status, outcome.date]
@@ -79,6 +80,7 @@ export default async function handler(req, res) {
     }
 
     res.status(200).json({ user: username, outcomes });
+
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: err.message });
