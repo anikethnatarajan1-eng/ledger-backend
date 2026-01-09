@@ -17,7 +17,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Octokit with GitHub App auth
+    // Octokit with GitHub App authentication
     const octokit = new Octokit({
       authStrategy: createAppAuth,
       auth: {
@@ -27,14 +27,18 @@ export default async function handler(req, res) {
       },
     });
 
-    // Fetch repos for the authenticated installation
+    // List repos the App installation can access
     const reposRes = await octokit.rest.apps.listReposAccessibleToInstallation();
-const repos = reposRes.data.repositories; // only repos the app can access
+    const repos = reposRes.data.repositories;
+
+    if (repos.length === 0) {
+      return res.status(200).json({ user: username, outcomes: [], message: "No repos accessible by the App" });
+    }
 
     let outcomes = [];
 
     for (let repo of repos) {
-      // Fetch PRs
+      // Fetch pull requests
       const prs = await octokit.rest.pulls.list({
         owner: repo.owner.login,
         repo: repo.name,
