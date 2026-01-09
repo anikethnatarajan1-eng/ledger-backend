@@ -1,11 +1,10 @@
-// /api/fetch-contributions.js
 import { Octokit } from "@octokit/rest";
 import { createAppAuth } from "@octokit/auth-app";
 import pkg from "pg";
 
 const { Pool } = pkg;
 
-// Connect to Postgres / Supabase
+// Connect to Postgres/Supabase
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
 });
@@ -18,7 +17,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Create Octokit instance with GitHub App authentication
+    // Octokit with GitHub App auth
     const octokit = new Octokit({
       authStrategy: createAppAuth,
       auth: {
@@ -28,12 +27,13 @@ export default async function handler(req, res) {
       },
     });
 
-    // Fetch repos accessible by the installation
-    const repos = await octokit.rest.repos.listForAuthenticatedUser();
+    // Fetch repos for the authenticated installation
+    const reposRes = await octokit.rest.repos.listForAuthenticatedUser();
+    const repos = reposRes.data;
 
     let outcomes = [];
 
-    for (let repo of repos.data) {
+    for (let repo of repos) {
       // Fetch PRs
       const prs = await octokit.rest.pulls.list({
         owner: repo.owner.login,
@@ -69,7 +69,7 @@ export default async function handler(req, res) {
       });
     }
 
-    // Store outcomes in Postgres
+    // Save outcomes to Postgres
     for (let outcome of outcomes) {
       await pool.query(
         `INSERT INTO outcomes(user_name, repo, type, status, date)
