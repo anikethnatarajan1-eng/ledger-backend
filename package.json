@@ -1,1 +1,31 @@
 
+{
+  "name": "ledger-backend",
+  "version": "1.0.0",
+  "description": "Backend for Aniketh.fun Human Reputation Ledger",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "dev": "vercel dev",
+    "start": "node index.js",
+    "deploy": "vercel --prod"
+  },
+  "keywords": [
+    "github",
+    "reputation",
+    "ledger",
+    "backend",
+    "vercel",
+    "supabase"
+  ],
+  "author": "Aniketh",
+  "license": "MIT",
+  "dependencies": {
+    "@octokit/auth-app": "^4.2.0",
+    "@octokit/rest": "^20.0.0",
+    "pg": "^8.11.1"
+  },
+  "devDependencies": {
+    "vercel": "^28.0.0"
+  }
+}
