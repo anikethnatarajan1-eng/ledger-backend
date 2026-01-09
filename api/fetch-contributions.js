@@ -18,12 +18,13 @@ export default async function handler(req, res) {
   try {
     // Authenticate as GitHub App
     const octokit = new Octokit({
-      authStrategy: createAppAuth,
-      auth: {
-        appId: process.env.GITHUB_APP_ID,
-        privateKey: process.env.GITHUB_PRIVATE_KEY.replace(/\\n/g, "\n"),
-      },
-    });
+  authStrategy: createAppAuth,
+  auth: {
+    appId: process.env.GITHUB_APP_ID,
+    privateKey: process.env.GITHUB_PRIVATE_KEY.replace(/\\n/g, "\n"),
+    installationId: parseInt(process.env.GITHUB_INSTALLATION_ID),
+  },
+});
 
     // Fetch public repos of the user (you can narrow to your repo later)
     const repos = await octokit.rest.repos.listForUser({ username });
