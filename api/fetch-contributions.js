@@ -4,13 +4,12 @@ import { createClient } from "@supabase/supabase-js";
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
-  process.env.SUPABASE_KEY
+  process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
 export default async function handler(req, res) {
   try {
-    console.log("Starting contributions fetch...");
-
+    // --- Initialize Octokit with GitHub App auth ---
     const octokit = new Octokit({
       authStrategy: createAppAuth,
       auth: {
@@ -20,12 +19,12 @@ export default async function handler(req, res) {
       },
     });
 
+    // --- Fetch repos this app is installed on ---
     const repoResponse = await octokit.request("GET /installation/repositories");
     const repos = repoResponse?.data?.repositories || [];
-    console.log(`Fetched ${repos.length} repos`);
-
     const outcomes = [];
 
+    // --- Iterate through repos safely ---
     for (const repo of repos) {
       try {
         const commitResponse = await octokit.request(
@@ -38,31 +37,42 @@ export default async function handler(req, res) {
         );
 
         const commits = commitResponse?.data || [];
-        console.log(`Processing ${commits.length} commits for repo: ${repo.name}`);
-
         for (const commit of commits) {
-          if (!commit.author || !commit.commit || !commit.commit.author?.date) continue;
+          if (
+            !commit.author ||
+            !commit.commit ||
+            !commit.commit.author ||
+            !commit.commit.author.date
+          ) continue;
 
-          const outcome = {
+          outcomes.push({
             user: commit.author.login,
             repo: repo.full_name,
             message: commit.commit.message,
             sha: commit.sha,
             date: commit.commit.author.date,
-          };
-
-          outcomes.push(outcome);
-
-          // Insert into Supabase
-          const { error: dbError } = await supabase
-            .from("contributions")
-            .upsert(outcome, { onConflict: ["sha"] }); // prevent duplicates
-
-          if (dbError) console.error("Supabase insert error:", dbError.message);
+          });
         }
       } catch (repoError) {
-        console.warn(`Skipping repo ${repo.name} due to error:`, repoError.message);
+        if (repoError.status === 409 || repoError.status === 404 || repoError.status === 403)
+          continue; // skip non-fatal repo errors
+        console.error("Repo error:", repo.full_name, repoError.message);
       }
+    }
+
+    // --- Save to Supabase ---
+    for (const outcome of outcomes) {
+      const { data, error } = await supabase
+        .from("contributions") // your table name
+        .upsert({
+          user: outcome.user,
+          repo: outcome.repo,
+          message: outcome.message,
+          sha: outcome.sha,
+          date: outcome.date,
+        }, { onConflict: ["sha"] });
+
+      if (error) console.error("Supabase error:", error);
     }
 
     res.status(200).json({
@@ -71,11 +81,8 @@ export default async function handler(req, res) {
       totalOutcomes: outcomes.length,
       outcomes,
     });
-
-    console.log("Contributions fetch completed successfully!");
-
-  } catch (error) {
-    console.error("Fatal error:", error);
-    res.status(500).json({ error: error.message });
+  } catch (err) {
+    console.error("Fatal error:", err);
+    res.status(500).json({ error: "Internal server error", message: err.message });
   }
 }
