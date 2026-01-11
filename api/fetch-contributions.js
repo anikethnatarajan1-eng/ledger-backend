@@ -22,39 +22,33 @@ export default async function handler(req, res) {
 
     // 2️⃣ Loop through repos and fetch commits
     for (const repo of repos) {
-      const commits = await octokit.request(
-        "GET /repos/{owner}/{repo}/commits",
-        {
-          owner: "anikethnatarajan1-eng",
-          repo: repo.name,
-          per_page: 10
-        }
-      );
+  try {
+    const commits = await octokit.request(
+      "GET /repos/{owner}/{repo}/commits",
+      {
+        owner: "anikethnatarajan1-eng",
+        repo: repo.name,
+        per_page: 10
+      }
+    );
 
-      // 3️⃣ Convert commits → human outcomes
-      commits.data.forEach(commit => {
-        if (!commit.author) return;
+    commits.data.forEach(commit => {
+      if (!commit.author) return;
 
-        outcomes.push({
-          user: commit.author.login,
-          repo: repo.full_name,
-          message: commit.commit.message,
-          sha: commit.sha,
-          date: commit.commit.author.date
-        });
+      outcomes.push({
+        user: commit.author.login,
+        repo: repo.full_name,
+        message: commit.commit.message,
+        sha: commit.sha,
+        date: commit.commit.author.date
       });
+    });
+
+  } catch (err) {
+    // ✅ Skip empty repos or restricted repos
+    if (err.status === 409) {
+      continue;
     }
-
-    // 4️⃣ Return outcomes
-    res.status(200).json({
-      user: "aniketh",
-      outcomes
-    });
-
-  } catch (error) {
-    res.status(500).json({
-      error: error.message,
-      details: error
-    });
+    throw err;
   }
 }
