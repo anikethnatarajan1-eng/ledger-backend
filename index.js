@@ -1,3 +1,4 @@
+console.log("🔥 THIS IS THE REAL INDEX.JS FILE 🔥");
 import express from "express";
 import fetchContributions from "./api/fetch-contributions.js";
 
