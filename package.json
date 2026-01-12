@@ -28,9 +28,4 @@
   "devDependencies": {
     "vercel": "^28.0.0"
   }
-  "scripts": {
-  "dev": "nodemon index.js",
-  "start": "node index.js",
-  "deploy": "vercel --prod"
-}
-
+  
