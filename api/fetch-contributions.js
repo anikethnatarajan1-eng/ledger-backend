@@ -37,16 +37,20 @@ export default async function handler(req, res) {
         );
 
         const commits = commitResponse?.data || [];
+
         for (const commit of commits) {
           if (
-            !commit.author ||
             !commit.commit ||
             !commit.commit.author ||
             !commit.commit.author.date
           ) continue;
 
+          // ✅ CANONICAL USER (THIS IS THE IMPORTANT PART)
+          const canonicalUser =
+            commit.author?.login ?? repo.owner.login;
+
           outcomes.push({
-            user: commit.author.login,
+            user: canonicalUser,
             repo: repo.full_name,
             message: commit.commit.message,
             sha: commit.sha,
@@ -54,23 +58,30 @@ export default async function handler(req, res) {
           });
         }
       } catch (repoError) {
-        if (repoError.status === 409 || repoError.status === 404 || repoError.status === 403)
-          continue; // skip non-fatal repo errors
+        if (
+          repoError.status === 409 ||
+          repoError.status === 404 ||
+          repoError.status === 403
+        ) continue; // skip non-fatal repo errors
+
         console.error("Repo error:", repo.full_name, repoError.message);
       }
     }
 
     // --- Save to Supabase ---
     for (const outcome of outcomes) {
-      const { data, error } = await supabase
-        .from("contributions") // your table name
-        .upsert({
-          user: outcome.user,
-          repo: outcome.repo,
-          message: outcome.message,
-          sha: outcome.sha,
-          date: outcome.date,
-        }, { onConflict: ["sha"] });
+      const { error } = await supabase
+        .from("contributions")
+        .upsert(
+          {
+            user: outcome.user,
+            repo: outcome.repo,
+            message: outcome.message,
+            sha: outcome.sha,
+            date: outcome.date,
+          },
+          { onConflict: ["sha"] }
+        );
 
       if (error) console.error("Supabase error:", error);
     }
@@ -83,6 +94,8 @@ export default async function handler(req, res) {
     });
   } catch (err) {
     console.error("Fatal error:", err);
-    res.status(500).json({ error: "Internal server error", message: err.message });
+    res
+      .status(500)
+      .json({ error: "Internal server error", message: err.message });
   }
 }
