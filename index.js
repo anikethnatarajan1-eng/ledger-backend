@@ -1,12 +1,10 @@
-import express from "express";
-import fetchContributions from "./api/fetch-contributions.js";
+import http from "http";
 
-const app = express();
-const PORT = process.env.PORT || 3000;
+const server = http.createServer((req, res) => {
+  res.writeHead(200, { "Content-Type": "text/plain" });
+  res.end("Ledger backend running");
+});
 
-// Example route
-app.get("/api/fetch-contributions", fetchContributions);
-
-app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
+server.listen(3000, () => {
+  console.log("Local dev server running on http://localhost:3000");
 });
