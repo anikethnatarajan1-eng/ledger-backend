@@ -87,7 +87,7 @@ export default async function handler(req, res) {
     }
 
     res.status(200).json({
-      user: "aniketh",
+      user: "anikethnatarajan1-eng",
       totalRepos: repos.length,
       totalOutcomes: outcomes.length,
       outcomes,
