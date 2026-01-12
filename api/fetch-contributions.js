@@ -2,6 +2,7 @@ import { Octokit } from "@octokit/rest";
 import { createAppAuth } from "@octokit/auth-app";
 import { createClient } from "@supabase/supabase-js";
 
+// --- Initialize Supabase ---
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -24,7 +25,7 @@ export default async function handler(req, res) {
     const repos = repoResponse?.data?.repositories || [];
     const outcomes = [];
 
-    // --- Iterate through repos safely ---
+    // --- Iterate through repos ---
     for (const repo of repos) {
       try {
         const commitResponse = await octokit.request(
@@ -32,70 +33,57 @@ export default async function handler(req, res) {
           {
             owner: repo.owner.login,
             repo: repo.name,
-            per_page: 10,
+            per_page: 10, // number of commits to fetch per repo
           }
         );
 
         const commits = commitResponse?.data || [];
 
         for (const commit of commits) {
-          if (
-            !commit.commit ||
-            !commit.commit.author ||
-            !commit.commit.author.date
-          ) continue;
+          if (!commit.commit || !commit.commit.author || !commit.commit.author.date) continue;
 
-          // ✅ CANONICAL USER (THIS IS THE IMPORTANT PART)
-          const canonicalUser =
-            commit.author?.login ?? repo.owner.login;
+          // --- canonicalUser: use author login if exists, else repo owner ---
+          const canonicalUser = commit.author?.login ?? repo.owner.login;
 
-          outcomes.push({
+          // --- Store each commit in Supabase ---
+          const { data, error } = await supabase
+            .from("contributions")
+            .upsert(
+              {
+                canonical_user: canonicalUser,
+                source: "github",
+                repo: repo.full_name,
+                sha: commit.sha,
+                message: commit.commit.message,
+                contribution_date: commit.commit.author.date,
+                weight: 1.0,
+              },
+              { onConflict: ["source", "sha"] } // prevent duplicates
+            );
+
+          if (error) console.error("Supabase error:", error);
+          else outcomes.push({
             user: canonicalUser,
             repo: repo.full_name,
-            message: commit.commit.message,
             sha: commit.sha,
-            date: commit.commit.author.date,
+            message: commit.commit.message,
+            contribution_date: commit.commit.author.date
           });
         }
       } catch (repoError) {
-        if (
-          repoError.status === 409 ||
-          repoError.status === 404 ||
-          repoError.status === 403
-        ) continue; // skip non-fatal repo errors
-
+        if ([403, 404, 409].includes(repoError.status)) continue; // skip non-fatal errors
         console.error("Repo error:", repo.full_name, repoError.message);
       }
     }
 
-    // --- Save to Supabase ---
-    for (const outcome of outcomes) {
-      const { error } = await supabase
-        .from("contributions")
-        .upsert(
-          {
-            user: outcome.user,
-            repo: outcome.repo,
-            message: outcome.message,
-            sha: outcome.sha,
-            date: outcome.date,
-          },
-          { onConflict: ["sha"] }
-        );
-
-      if (error) console.error("Supabase error:", error);
-    }
-
     res.status(200).json({
-      user: "anikethnatarajan1-eng",
+      user: "aniketh",
       totalRepos: repos.length,
       totalOutcomes: outcomes.length,
       outcomes,
     });
   } catch (err) {
     console.error("Fatal error:", err);
-    res
-      .status(500)
-      .json({ error: "Internal server error", message: err.message });
+    res.status(500).json({ error: "Internal server error", message: err.message });
   }
 }
