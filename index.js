@@ -1,10 +1,15 @@
-import http from "http";
+import express from "express";
+import fetchContributions from "./api/fetch-contributions.js";
 
-const server = http.createServer((req, res) => {
-  res.writeHead(200, { "Content-Type": "text/plain" });
-  res.end("Ledger backend running");
+const app = express();
+const PORT = 3000;
+
+app.get("/", (req, res) => {
+  res.send("Ledger backend running");
 });
 
-server.listen(3000, () => {
-  console.log("Local dev server running on http://localhost:3000");
+app.get("/api/fetch-contributions", fetchContributions);
+
+app.listen(PORT, () => {
+  console.log(`Ledger backend running on http://localhost:${PORT}`);
 });
