@@ -1,16 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 
-// Frontend for Ledger
-// This UI MUST NOT crash even if:
-// - backend is down
-// - fetch fails (network / CORS / sandbox)
-// - backend returns unexpected JSON
-//
-// Expected backend response (best case):
-// { outcomes: Array<{ user, repo, message, date }> }
-
 export default function App() {
-  // Always keep a stable state shape
+  // Stable state (never null)
   const [data, setData] = useState({ outcomes: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -25,23 +16,23 @@ export default function App() {
       setError(null);
 
       try {
-        // IMPORTANT:
-        // In many sandboxes / previews, fetch("/api/...") will FAIL.
-        // We treat ANY failure as "backend unavailable" and recover safely.
-        const res = await fetch("/api/fetch-contributions", {
-          headers: { Accept: "application/json" },
-        });
+        // 👇 IMPORTANT: backend is on port 3000
+        const res = await fetch(
+          "http://localhost:3000/api/fetch-contributions",
+          { headers: { Accept: "application/json" } }
+        );
 
-        let json = null;
-        try {
-          json = await res.json();
-        } catch {
-          json = null;
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}`);
         }
 
-        // Defensive parsing — NEVER assume structure
+        const json = await res.json();
+
+        // Defensive parsing
         const outcomes =
-          json && typeof json === "object" && Array.isArray(json.outcomes)
+          json &&
+          typeof json === "object" &&
+          Array.isArray(json.outcomes)
             ? json.outcomes
             : [];
 
@@ -50,43 +41,39 @@ export default function App() {
           setLoading(false);
         }
       } catch (err) {
-        // Fetch failed (network / sandbox / backend down)
         if (cancelled) return;
 
-        console.warn("Backend unreachable, running in degraded mode", err);
-
-        setError("Backend unavailable — showing empty state");
+        console.error("Fetch failed:", err);
+        setError("Backend unavailable");
         setData({ outcomes: [] });
         setLoading(false);
       }
     }
 
     load();
-
     return () => {
       cancelled = true;
     };
   }, []);
 
-  // Guaranteed-safe access
   const outcomes = Array.isArray(data.outcomes) ? data.outcomes : [];
 
   const repos = useMemo(() => {
     return [
       "all",
-      ...Array.from(new Set(outcomes.map((o) => o?.repo).filter(Boolean))),
+      ...Array.from(new Set(outcomes.map(o => o?.repo).filter(Boolean))),
     ];
   }, [outcomes]);
 
   const users = useMemo(() => {
     return [
       "all",
-      ...Array.from(new Set(outcomes.map((o) => o?.user).filter(Boolean))),
+      ...Array.from(new Set(outcomes.map(o => o?.user).filter(Boolean))),
     ];
   }, [outcomes]);
 
   const filtered = useMemo(() => {
-    return outcomes.filter((o) => {
+    return outcomes.filter(o => {
       if (!o) return false;
       if (repoFilter !== "all" && o.repo !== repoFilter) return false;
       if (userFilter !== "all" && o.user !== userFilter) return false;
@@ -104,25 +91,21 @@ export default function App() {
       <p>Live GitHub contribution intelligence</p>
 
       {error && (
-        <div style={{ marginBottom: 20, color: "darkred" }}>
+        <div style={{ color: "darkred", marginBottom: 20 }}>
           {error}
         </div>
       )}
 
       <div style={{ display: "flex", gap: 20, marginBottom: 20 }}>
-        <select value={repoFilter} onChange={(e) => setRepoFilter(e.target.value)}>
-          {repos.map((r) => (
-            <option key={r} value={r}>
-              {r}
-            </option>
+        <select value={repoFilter} onChange={e => setRepoFilter(e.target.value)}>
+          {repos.map(r => (
+            <option key={r} value={r}>{r}</option>
           ))}
         </select>
 
-        <select value={userFilter} onChange={(e) => setUserFilter(e.target.value)}>
-          {users.map((u) => (
-            <option key={u} value={u}>
-              {u}
-            </option>
+        <select value={userFilter} onChange={e => setUserFilter(e.target.value)}>
+          {users.map(u => (
+            <option key={u} value={u}>{u}</option>
           ))}
         </select>
       </div>
@@ -144,7 +127,7 @@ export default function App() {
           {filtered.length === 0 ? (
             <tr>
               <td colSpan="4" style={{ textAlign: "center" }}>
-                No contributions available.
+                No contributions available
               </td>
             </tr>
           ) : (
@@ -153,20 +136,14 @@ export default function App() {
                 <td>{o.user || "unknown"}</td>
                 <td>{o.repo || "unknown"}</td>
                 <td>{o.message || ""}</td>
-                <td>{o.date ? new Date(o.date).toLocaleString() : ""}</td>
+                <td>
+                  {o.date ? new Date(o.date).toLocaleString() : ""}
+                </td>
               </tr>
             ))
           )}
         </tbody>
       </table>
-
-      {/*
-        Manual test cases:
-        1. Backend running → rows render
-        2. Backend stopped → UI still loads, shows empty table
-        3. Backend returns bad JSON → no crash
-        4. Filters always work without errors
-      */}
     </div>
   );
 }
