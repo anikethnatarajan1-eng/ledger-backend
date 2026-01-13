@@ -1,25 +1,54 @@
-import dotenv from "dotenv";
-import express from "express";
-import cors from "cors";
-import dotenv from "dotenv";
-import fetchContributionsRoute from "./api/fetch-contributions.js";
+// index.js - Ledger Backend
 
+import dotenv from "dotenv";
+dotenv.config(); // load .env variables
+
+import http from "http";
 import { createClient } from "@supabase/supabase-js";
 
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+// Validate environment variables
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-dotenv.config();
+if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+  console.error(
+    "ERROR: SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY is missing in .env"
+  );
+  process.exit(1);
+}
 
-const app = express();
-app.use(cors());
-app.use(express.json());
+// Initialize Supabase client
+const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-app.use("/api/fetch-contributions", fetchContributionsRoute);
+// Simple router
+const server = http.createServer(async (req, res) => {
+  if (req.url === "/api/fetch-contributions") {
+    try {
+      // Example: Fetch contributions from your Supabase table
+      const { data, error } = await supabase
+        .from("contributions")
+        .select("*")
+        .order("contribution_date", { ascending: false });
 
+      if (error) throw error;
+
+      // Send JSON response
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ outcomes: Array.isArray(data) ? data : [] }));
+    } catch (err) {
+      console.error("Error fetching contributions:", err.message);
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ outcomes: [] }));
+    }
+  } else {
+    // Default route
+    res.writeHead(200, { "Content-Type": "text/plain" });
+    res.end("Ledger backend running");
+  }
+});
+
+// Start server
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Ledger backend running on http://localhost:${PORT}`);
+server.listen(PORT, () => {
+  console.log(`Local dev server running on http://localhost:${PORT}`);
 });
