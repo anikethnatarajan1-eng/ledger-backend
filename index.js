@@ -1,16 +1,17 @@
-import 'dotenv/config';
 import express from "express";
-import fetchContributions from "./api/fetch-contributions.js";
+import cors from "cors";
+import dotenv from "dotenv";
+import fetchContributionsRoute from "./api/fetch-contributions.js";
+
+dotenv.config();
 
 const app = express();
-const PORT = 3000;
+app.use(cors());
+app.use(express.json());
 
-app.get("/", (req, res) => {
-  res.send("Ledger backend running");
-});
+app.use("/api/fetch-contributions", fetchContributionsRoute);
 
-app.get("/api/fetch-contributions", fetchContributions);
-
+const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Ledger backend running on http://localhost:${PORT}`);
 });
