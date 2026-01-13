@@ -1,3 +1,6 @@
+import dotenv from "dotenv";
+dotenv.config(); // MUST be first line before any usage of process.env
+
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
